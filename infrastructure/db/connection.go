@@ -2,7 +2,6 @@ package db
 
 import (
 	"financial/config"
-	"financial/infrastructure/db/psql"
 	"gorm.io/gorm"
 )
 
@@ -17,10 +16,10 @@ func Factory(cfg config.Database) *gorm.DB {
 	case mysql:
 		break
 	case postgres:
-		connect = psql.GetConnection(cfg)
+		connect = GetConnection(cfg)
 		break
 	default:
-		connect = psql.GetConnection(cfg)
+		connect = GetConnection(cfg)
 	}
 
 	return connect

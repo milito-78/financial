@@ -37,7 +37,7 @@ func (router *Router) AddRoute(path string, handler func(ctx *RequestContext) (R
 
 func (router *Router) MatchRoute(received tgbotapi.Update) (*Route, string, []string, error) {
 	message := received.Message
-	if router.onlyTextMessage(message) {
+	if message != nil && router.onlyTextMessage(message) {
 		found := router.foundHandler(message.Text)
 		if found == nil {
 			found = router.handleLastStep(received.Message.From)

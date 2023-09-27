@@ -3,8 +3,7 @@ package bootstrap
 import (
 	"financial/application"
 	"financial/config"
-	"financial/infrastructure/db"
-	"financial/infrastructure/db/psql"
+	database "financial/infrastructure/db"
 	"github.com/golobby/container/v3"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -12,7 +11,7 @@ import (
 
 func InitDatabase() {
 	err := container.Singleton(func() *gorm.DB {
-		t := db.Factory(config.Default.(*config.App).Database)
+		t := database.Factory(config.Default.(*config.App).Database)
 		return t
 	})
 
@@ -27,21 +26,37 @@ func InitDependencies() {
 }
 
 func initRepositories() {
-	_ = container.Singleton(func(db *gorm.DB) *psql.UserRepository {
-		return psql.NewUserRepository(db)
+	_ = container.Singleton(func(db *gorm.DB) *database.UserRepository {
+		return database.NewUserRepository(db)
 	})
 
-	_ = container.Singleton(func(repo *psql.UserRepository) db.UserReader {
+	_ = container.Singleton(func(repo *database.UserRepository) database.UserReader {
 		return repo
 	})
 
-	_ = container.Singleton(func(repo *psql.UserRepository) db.UserWriter {
+	_ = container.Singleton(func(repo *database.UserRepository) database.UserWriter {
+		return repo
+	})
+
+	_ = container.Singleton(func(db *gorm.DB) *database.GroupRepository {
+		return database.NewGroupRepository(db)
+	})
+
+	_ = container.Singleton(func(repo *database.GroupRepository) database.GroupReader {
+		return repo
+	})
+
+	_ = container.Singleton(func(repo *database.GroupRepository) database.GroupWriter {
 		return repo
 	})
 }
 
 func initUseCases() {
-	_ = container.Singleton(func(reader db.UserReader, writer db.UserWriter) application.IUserService {
+	_ = container.Singleton(func(reader database.UserReader, writer database.UserWriter) application.IUserService {
 		return application.NewUserService(reader, writer)
+	})
+
+	_ = container.Singleton(func(reader database.GroupReader, writer database.GroupWriter) application.IGroupService {
+		return application.NewGroupService(reader, writer)
 	})
 }

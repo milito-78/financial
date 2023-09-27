@@ -1,11 +1,9 @@
 package main
 
 import (
-	"financial/application"
 	"financial/bootstrap"
 	"financial/config"
 	"financial/io/telegram"
-	"github.com/golobby/container/v3"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
@@ -36,8 +34,6 @@ func main() {
 
 	bot := telegram.NewTelegramBot(cfg.BotToken)
 
-	registerRoutes(bot.Router())
-
 	go bot.StartBot()
 
 	signalForExit := make(chan os.Signal, 1)
@@ -53,11 +49,4 @@ func main() {
 	log.Info("Waiting for all jobs to stop")
 	bot.StopBot()
 	log.Info("All jobs stop successfully")
-}
-
-func registerRoutes(router *telegram.Router) {
-	var userService application.IUserService
-	_ = container.Resolve(&userService)
-	startCmd := telegram.NewStartCommand(userService)
-	router.AddRoute("start", startCmd.Handle, "Start Command")
 }

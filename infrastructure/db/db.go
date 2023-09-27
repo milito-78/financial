@@ -1,10 +1,9 @@
-package psql
+package db
 
 import (
 	"financial/config"
-	"financial/infrastructure/db/psql/models"
 	log "github.com/sirupsen/logrus"
-	"gorm.io/driver/postgres"
+	psq "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -14,7 +13,7 @@ func GetConnection(cfg config.Database) *gorm.DB {
 	if db != nil {
 		return db
 	}
-	conn, err := gorm.Open(postgres.New(postgres.Config{
+	conn, err := gorm.Open(psq.New(psq.Config{
 		DSN:                  "host=" + cfg.Host + " user=" + cfg.User + " password=" + cfg.Password + " dbname=" + cfg.Name + " port=" + cfg.Port + " sslmode=disable TimeZone=UTC",
 		PreferSimpleProtocol: true,
 	}), &gorm.Config{})
@@ -23,7 +22,7 @@ func GetConnection(cfg config.Database) *gorm.DB {
 	}
 	db = conn
 
-	db.AutoMigrate(models.UserEntity{})
+	db.AutoMigrate(UserEntity{}, GroupEntity{})
 
 	return db
 }

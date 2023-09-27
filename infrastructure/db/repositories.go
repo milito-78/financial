@@ -2,6 +2,12 @@ package db
 
 import "financial/domain"
 
+type Paginate[T interface{}] struct {
+	Results  []*T
+	Page     uint
+	NextPage bool
+}
+
 type NotFoundError struct {
 }
 
@@ -18,4 +24,14 @@ type UserReader interface {
 type UserWriter interface {
 	Create(user *domain.User) error
 	Update(user *domain.User) error
+}
+
+type GroupReader interface {
+	Get(id uint64) *domain.Group
+	UserGroupsPaginate(user uint64, page uint) Paginate[domain.Group]
+}
+
+type GroupWriter interface {
+	Create(group *domain.Group) error
+	Update(group *domain.Group) error
 }

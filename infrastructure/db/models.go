@@ -1,4 +1,4 @@
-package models
+package db
 
 import (
 	"financial/domain"
@@ -12,6 +12,10 @@ type Identifier struct {
 type Dates struct {
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime:nano"`
+}
+
+type SoftDelete struct {
+	DeletedAt *time.Time `gorm:"type:timestamp;"`
 }
 
 type UserEntity struct {
@@ -44,6 +48,45 @@ func FromUser(user *domain.User) *UserEntity {
 		Dates: Dates{
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
+		},
+	}
+}
+
+type GroupEntity struct {
+	CreatorId uint64      `gorm:"not null"`
+	Creator   *UserEntity `gorm:"foreignKey:CreatorId"`
+	Name      string
+	Identifier
+	SoftDelete
+	Dates
+}
+
+func (g *GroupEntity) ToGroup() *domain.Group {
+	return &domain.Group{
+		DeletedAt: g.DeletedAt,
+		CreatedAt: g.CreatedAt,
+		UpdatedAt: g.UpdatedAt,
+		CreatorId: g.CreatorId,
+		Creator:   *g.Creator.ToUser(),
+		Name:      g.Name,
+		ID:        g.ID,
+	}
+}
+
+func FromGroup(group *domain.Group) *GroupEntity {
+	return &GroupEntity{
+		CreatorId: group.CreatorId,
+		Creator:   FromUser(&group.Creator),
+		Name:      group.Name,
+		Identifier: Identifier{
+			ID: group.ID,
+		},
+		SoftDelete: SoftDelete{
+			DeletedAt: group.DeletedAt,
+		},
+		Dates: Dates{
+			CreatedAt: group.CreatedAt,
+			UpdatedAt: group.UpdatedAt,
 		},
 	}
 }

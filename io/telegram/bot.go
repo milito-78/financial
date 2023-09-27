@@ -23,6 +23,10 @@ func NewTelegramBot(token string) *TlgBot {
 
 func (tlg *TlgBot) StartBot() {
 	log.Info("Starting bot")
+	log.Info("Registering routes...")
+	tlg.registerRouter()
+	log.Info("Registering finished")
+
 	updateConfig := telBot.NewUpdate(0)
 
 	updates := tlg.bot.GetUpdatesChan(updateConfig)
@@ -57,6 +61,10 @@ func (tlg *TlgBot) StopBot() {
 
 func (tlg *TlgBot) Router() *Router {
 	return tlg.router
+}
+
+func (tlg *TlgBot) registerRouter() {
+	registerRoutes(tlg.Router())
 }
 
 func (tlg *TlgBot) renderView(ctx *RequestContext, view Renderable) {
