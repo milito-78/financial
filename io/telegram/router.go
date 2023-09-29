@@ -3,6 +3,7 @@ package telegram
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -15,15 +16,16 @@ type Route struct {
 }
 
 type RequestContext struct {
-	RouteParams []string
-	Received    tgbotapi.Update
-	Route       *Route
-	Message     string
+	RouteParams       []string
+	Received          tgbotapi.Update
+	Route             *Route
+	Message           string
+	StateSaverChannel chan<- State
 }
 
 type Router struct {
-	Routes []*Route
-	cache  string // todo cache driver
+	Routes    []*Route
+	LastState func(lastStateUser string) (string, error)
 }
 
 func NewRouter() *Router {
@@ -65,9 +67,11 @@ func (router *Router) MatchRoute(received tgbotapi.Update) (*Route, string, []st
 }
 
 func (router *Router) handleLastStep(user *tgbotapi.User) *Route {
-	//TODO redis cache
-	pattern := "last/step"
-	return router.foundHandler(pattern)
+	found, err := router.LastState(strconv.FormatInt(user.ID, 10))
+	if err != nil || found == "" {
+		return nil
+	}
+	return router.foundHandler(found)
 }
 
 func (router *Router) onlyTextMessage(message *tgbotapi.Message) bool {

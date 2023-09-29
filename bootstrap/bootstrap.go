@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"financial/application"
 	"financial/config"
+	"financial/infrastructure/cache"
 	database "financial/infrastructure/db"
 	"github.com/golobby/container/v3"
 	log "github.com/sirupsen/logrus"
@@ -13,6 +14,17 @@ func InitDatabase() {
 	err := container.Singleton(func() *gorm.DB {
 		t := database.Factory(config.Default.(*config.App).Database)
 		return t
+	})
+
+	if err != nil {
+		log.Fatalf("Error during generate singleton : %s", err)
+	}
+}
+
+func InitCache() {
+	err := container.Singleton(func() cache.ICache {
+		c := cache.NewCache(config.Default.(*config.App).Cache)
+		return c
 	})
 
 	if err != nil {

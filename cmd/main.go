@@ -30,6 +30,7 @@ func init() {
 
 func main() {
 	bootstrap.InitDatabase()
+	bootstrap.InitCache()
 	bootstrap.InitDependencies()
 
 	bot := telegram.NewTelegramBot(cfg.BotToken)

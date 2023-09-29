@@ -138,6 +138,20 @@ func (g GroupListView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 	return message
 }
 
+type GroupCreateView struct {
+}
+
+func NewGroupCreateView() *GroupCreateView {
+	return &GroupCreateView{}
+}
+
+func (g GroupCreateView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	var text string
+	text = "Please tell me what is your group name? :"
+	message := tgbotapi.NewMessage(received.Message.Chat.ID, text)
+	return message
+}
+
 func buttonMakerMatrix(buttons []ButtonComponent, colCount uint) [][]tgbotapi.KeyboardButton {
 	length := len(buttons)
 	if length == 0 {

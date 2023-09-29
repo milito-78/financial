@@ -38,12 +38,11 @@ func registerRoutes(router *Router) {
 	router.AddRoute(StartCmd, startCmd.Handle, "Start Command")
 	router.AddRoute(BackToMenu, startCmd.Handle, "Groups menu Command")
 
-	groupMenuCmd := NewGroupMenuCommand(userService)
-	router.AddRoute(GroupsCmd, groupMenuCmd.Handle, "Groups menu Command")
-
 	var groupService application.IGroupService
 	_ = container.Resolve(&groupService)
-	groupCmd := NewGroupListCommand(userService, groupService)
-	router.AddRoute(GroupsList, groupCmd.Handle, "Groups list")
+	groupActionCmd := NewGroupActionCommand(userService, groupService)
+	router.AddRoute(GroupsCmd, groupActionCmd.MenuHandle, "Groups menu Command")
+	router.AddRoute(GroupsList, groupActionCmd.List, "Groups list")
+	router.AddRoute(GroupsShow, groupActionCmd.Show, "Groups show")
 
 }
