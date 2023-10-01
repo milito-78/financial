@@ -21,7 +21,7 @@ type Cache struct {
 	Driver   string `mapstructure:"driver" default:"redis"`
 	Password string `mapstructure:"password" default:""`
 	Host     string `mapstructure:"host" default:"127.0.0.1"`
-	Port     string `mapstructure:"port" default:"3306"`
+	Port     string `mapstructure:"port" default:"6379"`
 	//these are for redis
 	DB     int    `mapstructure:"db" default:"0"`
 	Prefix string `mapstructure:"prefix" default:"bot_cache_prefix"`

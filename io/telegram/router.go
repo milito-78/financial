@@ -3,7 +3,6 @@ package telegram
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -20,7 +19,16 @@ type RequestContext struct {
 	Received          tgbotapi.Update
 	Route             *Route
 	Message           string
-	StateSaverChannel chan<- State
+	stateSaverChannel chan<- State
+	lastState         *State
+}
+
+func (r *RequestContext) SetState(state State) {
+	r.stateSaverChannel <- state
+}
+
+func (r *RequestContext) GetState() *State {
+	return r.lastState
 }
 
 type Router struct {
@@ -37,41 +45,14 @@ func (router *Router) AddRoute(path string, handler func(ctx *RequestContext) (R
 	router.Routes = append(router.Routes, &Route{Path: path, Pattern: pattern, Handler: handler, variables: vars, Name: name})
 }
 
-func (router *Router) MatchRoute(received tgbotapi.Update) (*Route, string, []string, error) {
-	message := received.Message
-	if message != nil && router.onlyTextMessage(message) {
-		found := router.foundHandler(message.Text)
-		if found == nil {
-			found = router.handleLastStep(received.Message.From)
-			if found == nil {
-				return nil, "", nil, RouteNotFoundError{message.Text}
-			}
-			target := regexp.MustCompile(found.Pattern)
-			routeParams := extractDynamicVars(received.CallbackQuery.Data, target)
-			return found, message.Text, routeParams, nil
-		} else {
-			return found, message.Text, nil, nil
-		}
-	}
-	if received.CallbackQuery != nil {
-		found := router.foundHandler(received.CallbackQuery.Data)
-		if found == nil {
-			return nil, "", nil, RouteNotFoundError{received.CallbackQuery.Data}
-		}
+func (router *Router) MatchRoute(path string) (*Route, []string, error) {
+	found := router.foundHandler(path)
+	if found != nil {
 		target := regexp.MustCompile(found.Pattern)
-		routeParams := extractDynamicVars(received.CallbackQuery.Data, target)
-
-		return found, received.CallbackQuery.Data, routeParams, nil
+		routeParams := extractDynamicVars(path, target)
+		return found, routeParams, nil
 	}
-	return nil, "", nil, RouteNotFoundError{message.Text}
-}
-
-func (router *Router) handleLastStep(user *tgbotapi.User) *Route {
-	found, err := router.LastState(strconv.FormatInt(user.ID, 10))
-	if err != nil || found == "" {
-		return nil
-	}
-	return router.foundHandler(found)
+	return nil, nil, RouteNotFoundError{path}
 }
 
 func (router *Router) onlyTextMessage(message *tgbotapi.Message) bool {

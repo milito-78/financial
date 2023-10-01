@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"financial/infrastructure/cache"
+	"fmt"
 	telBot "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
+	"strconv"
 )
 
 type TlgBot struct {
@@ -37,19 +39,52 @@ func (tlg *TlgBot) StartBot() {
 	updates := tlg.bot.GetUpdatesChan(updateConfig)
 	log.Info("Waiting for new update")
 	for update := range updates {
-		route, message, params, err := tlg.router.MatchRoute(update)
+		message := update.Message
+		var lastState *State
+		var err error
+		var route *Route
+		var params []string
+		var path string
+
+		switch {
+		case message != nil && tlg.onlyTextMessage(message):
+			lastState, err = tlg.handleLastStateForUser(strconv.FormatInt(message.From.ID, 10))
+			path = message.Text
+		case update.CallbackQuery != nil:
+			lastState, err = tlg.handleLastStateForUser(strconv.FormatInt(update.SentFrom().ID, 10))
+			path = update.CallbackQuery.Data
+		default:
+			handled := handleErrorView(RouteNotFoundError{})
+			tlg.bot.Send(handled.Render(update))
+			continue
+		}
+
+		route, params, err = tlg.router.MatchRoute(path)
 		if err != nil {
 			handled := handleErrorView(err)
 			tlg.bot.Send(handled.Render(update))
 			continue
 		}
 
+		if lastState == nil || lastState.Data.(string) == "" {
+			handled := handleErrorView(err)
+			tlg.bot.Send(handled.Render(update))
+			continue
+		} else if route == nil {
+			route, params, err = tlg.router.MatchRoute(lastState.Data.(string))
+			if err != nil {
+				handled := handleErrorView(err)
+				tlg.bot.Send(handled.Render(update))
+				continue
+			}
+		}
 		ctx := &RequestContext{
 			RouteParams:       params,
 			Received:          update,
 			Route:             route,
-			Message:           message,
-			StateSaverChannel: saverCh,
+			Message:           message.Text,
+			stateSaverChannel: saverCh,
+			lastState:         &State{},
 		}
 		renderable, err := route.Handler(ctx)
 		if err != nil {
@@ -69,6 +104,10 @@ func (tlg *TlgBot) Router() *Router {
 	return tlg.router
 }
 
+func (tlg *TlgBot) onlyTextMessage(message *telBot.Message) bool {
+	return message.Text != "" && message.Photo == nil && message.Document == nil && message.Video == nil
+}
+
 func (tlg *TlgBot) registerRouter() {
 	registerRoutes(tlg.Router())
 }
@@ -77,12 +116,12 @@ func (tlg *TlgBot) renderView(ctx *RequestContext, view Renderable) {
 	tlg.bot.Send(view.Render(ctx.Received))
 }
 
-func (tlg *TlgBot) handleLastStateForUser(lastStateUser string) (string, error) {
+func (tlg *TlgBot) handleLastStateForUser(lastStateUser string) (*State, error) {
 	found, err := tlg.state.Get(tlg.ctx, lastStateUser)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return found.Data.(string), nil
+	return found, nil
 }
 
 func (tlg *TlgBot) startStateChannel() chan<- State {
@@ -102,11 +141,13 @@ func (tlg *TlgBot) startStateChannel() chan<- State {
 }
 
 func handleErrorView(err error) Renderable {
-	if errors.Is(err, DataNotFound{}) {
+	fmt.Println(errors.As(err, &RouteNotFoundError{}), err)
+
+	if errors.As(err, &DataNotFound{}) {
 		return NewNotFoundView(err.Error())
 	}
-	if errors.Is(err, RouteNotFoundError{}) {
-		return NewNotFoundView("")
+	if errors.As(err, &RouteNotFoundError{}) {
+		return NewNotFoundView(err.Error())
 	}
 
 	//unknown error

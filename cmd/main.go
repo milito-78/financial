@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"financial/bootstrap"
 	"financial/config"
+	"financial/infrastructure/cache"
 	"financial/io/telegram"
+	"github.com/golobby/container/v3"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
@@ -33,7 +36,11 @@ func main() {
 	bootstrap.InitCache()
 	bootstrap.InitDependencies()
 
-	bot := telegram.NewTelegramBot(cfg.BotToken)
+	ctx := context.TODO()
+	var c cache.ICache
+	_ = container.Resolve(&c)
+
+	bot := telegram.NewTelegramBot(ctx, c, cfg.BotToken)
 
 	go bot.StartBot()
 

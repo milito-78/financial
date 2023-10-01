@@ -5,6 +5,7 @@ import (
 	"financial/config"
 	"fmt"
 	"github.com/redis/go-redis/v9"
+	log "github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -52,6 +53,9 @@ func NewRedis(cfg config.Cache) ICache {
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
+	if err := cl.Ping(context.TODO()); err.Err() != nil {
+		log.Fatalf("error on redis : %s", err)
+	}
 	return &Redis{client: cl, prefix: cfg.Prefix}
 }
 

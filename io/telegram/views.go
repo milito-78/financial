@@ -33,7 +33,7 @@ func NewNotFoundView(text string) *NotFoundView {
 }
 
 func (s NotFoundView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
-	message := tgbotapi.NewMessage(received.Message.Chat.ID, s.Text)
+	message := tgbotapi.NewMessage(received.SentFrom().ID, s.Text)
 	return message
 }
 
