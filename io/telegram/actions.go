@@ -3,35 +3,10 @@ package telegram
 import (
 	"financial/application"
 	"financial/domain"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"strconv"
 )
-
-type StartCommand struct {
-	userService application.IUserService
-}
-
-func NewStartCommand(userService application.IUserService) *StartCommand {
-	return &StartCommand{userService: userService}
-}
-
-func (s *StartCommand) Handle(ctx *RequestContext) (Renderable, error) {
-	telUser := ctx.Received.SentFrom()
-	isStart := false
-	if ctx.Route.Path != BackToMenu {
-		isStart = true
-		uuid := strconv.FormatInt(telUser.ID, 10)
-		_, err := s.userService.GetUserByUuid(uuid)
-		if err != nil {
-			err := s.userService.AddUser(domain.NewUser(telUser.UserName, telUser.FirstName, telUser.LastName, uuid))
-			if err != nil {
-				log.Printf("Error during create new user : %s \n", err)
-			}
-		}
-	}
-
-	return NewStartView(telUser.UserName, true, true, true, isStart), nil
-}
 
 type GroupActionCommand struct {
 	userService  application.IUserService
@@ -48,35 +23,71 @@ func (g *GroupActionCommand) MenuHandle(ctx *RequestContext) (Renderable, error)
 
 func (g *GroupActionCommand) List(ctx *RequestContext) (Renderable, error) {
 	telUser := ctx.Received.SentFrom()
-	uuid := strconv.FormatInt(telUser.ID, 10)
-	user, err := g.userService.GetUserByUuid(uuid)
+	uid := strconv.FormatInt(telUser.ID, 10)
+	user, err := g.userService.GetUserByUuid(uid)
 	if err != nil {
 		return nil, err
 	}
-
-	result := g.groupService.UserGroupPaginate(user.ID, 1)
+	page := uint(1)
+	if tmp := ctx.QueryParams.Get("page"); tmp != "" {
+		if t, err := strconv.Atoi(tmp); err == nil {
+			page = uint(t)
+		}
+	}
+	result := g.groupService.UserGroupPaginate(user.ID, page)
 	return NewGroupListView(result), nil
 }
 
 func (g *GroupActionCommand) Show(ctx *RequestContext) (Renderable, error) {
 	telUser := ctx.Received.SentFrom()
-	uuid := strconv.FormatInt(telUser.ID, 10)
-	user, err := g.userService.GetUserByUuid(uuid)
+	uid := strconv.FormatInt(telUser.ID, 10)
+	user, err := g.userService.GetUserByUuid(uid)
 	if err != nil {
 		return nil, err
 	}
 
-	result := g.groupService.UserGroupPaginate(user.ID, 1)
-	return NewGroupListView(result), nil
+	result, _ := g.groupService.UserGetGroup(user.ID, 1)
+	return NewGroupShowView(result), nil
 }
 
 func (g *GroupActionCommand) Create(ctx *RequestContext) (Renderable, error) {
 	telUser := ctx.Received.SentFrom()
-	uuid := strconv.FormatInt(telUser.ID, 10)
-	_, err := g.userService.GetUserByUuid(uuid)
+	uid := strconv.FormatInt(telUser.ID, 10)
+	_, err := g.userService.GetUserByUuid(uid)
+	if err != nil {
+		return nil, err
+	}
+	ctx.SetState(State{uid, GroupsStoreName})
+	return NewGroupCreateView(), nil
+}
+
+func (g *GroupActionCommand) Store(ctx *RequestContext) (Renderable, error) {
+	telUser := ctx.Received.SentFrom()
+	uid := strconv.FormatInt(telUser.ID, 10)
+	user, err := g.userService.GetUserByUuid(uid)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewGroupCreateView(), nil
+	gUuid := uuid.New()
+
+	var group = &domain.Group{
+		InviteLink: gUuid.String(),
+		CreatorId:  user.ID,
+		Name:       ctx.Message,
+	}
+
+	current := ctx.GetState()
+	switch current.Data.(string) {
+	case GroupsStoreName:
+		err = g.groupService.Store(group)
+		if err != nil {
+			log.Printf("Error during create group : %s", err)
+			return nil, UnknownError{}
+		}
+	default:
+		return nil, RouteNotFoundError{}
+	}
+	ctx.SetState(State{uid, nil})
+	return NewGroupStoreView(group), nil
 }

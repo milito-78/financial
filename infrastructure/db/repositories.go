@@ -8,6 +8,20 @@ type Paginate[T interface{}] struct {
 	NextPage bool
 }
 
+func MakeSimplePaginate[T interface{}](result []*T, page int, perPage int) *Paginate[T] {
+	nextPage := false
+	if len(result) > perPage {
+		nextPage = true
+		result = result[0:perPage]
+	}
+
+	return &Paginate[T]{
+		Results:  result,
+		Page:     uint(page),
+		NextPage: nextPage,
+	}
+}
+
 type NotFoundError struct {
 }
 
@@ -28,7 +42,7 @@ type UserWriter interface {
 
 type GroupReader interface {
 	Get(id uint64) *domain.Group
-	UserGroupsPaginate(user uint64, page uint) Paginate[domain.Group]
+	UserGroupsPaginate(user uint64, page uint) *Paginate[domain.Group]
 }
 
 type GroupWriter interface {

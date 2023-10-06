@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"financial/infrastructure/cache"
-	"fmt"
 	telBot "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
+	"net/url"
 	"strconv"
 )
 
@@ -44,47 +44,45 @@ func (tlg *TlgBot) StartBot() {
 		var err error
 		var route *Route
 		var params []string
+		var queries *url.Values
 		var path string
 
 		switch {
 		case message != nil && tlg.onlyTextMessage(message):
+			log.Info("Receive text message")
 			lastState, err = tlg.handleLastStateForUser(strconv.FormatInt(message.From.ID, 10))
 			path = message.Text
 		case update.CallbackQuery != nil:
+			log.Info("Receive callback message")
 			lastState, err = tlg.handleLastStateForUser(strconv.FormatInt(update.SentFrom().ID, 10))
 			path = update.CallbackQuery.Data
 		default:
-			handled := handleErrorView(RouteNotFoundError{})
+			log.Info("Unsupported message")
+			handled := handleErrorView(&RouteNotFoundError{})
 			tlg.bot.Send(handled.Render(update))
 			continue
 		}
-
-		route, params, err = tlg.router.MatchRoute(path)
-		if err != nil {
-			handled := handleErrorView(err)
-			tlg.bot.Send(handled.Render(update))
-			continue
-		}
-
-		if lastState == nil || lastState.Data.(string) == "" {
+		route, queries, params, err = tlg.router.MatchRoute(path)
+		if err != nil && (lastState == nil || lastState.Data.(string) == "") {
 			handled := handleErrorView(err)
 			tlg.bot.Send(handled.Render(update))
 			continue
 		} else if route == nil {
-			route, params, err = tlg.router.MatchRoute(lastState.Data.(string))
+			route, queries, params, err = tlg.router.MatchRoute(lastState.Data.(string))
 			if err != nil {
-				handled := handleErrorView(err)
+				handled := handleErrorView(DataNotFound{})
 				tlg.bot.Send(handled.Render(update))
 				continue
 			}
 		}
 		ctx := &RequestContext{
 			RouteParams:       params,
+			QueryParams:       *queries,
 			Received:          update,
 			Route:             route,
-			Message:           message.Text,
+			Message:           path,
 			stateSaverChannel: saverCh,
-			lastState:         &State{},
+			lastState:         lastState,
 		}
 		renderable, err := route.Handler(ctx)
 		if err != nil {
@@ -113,7 +111,8 @@ func (tlg *TlgBot) registerRouter() {
 }
 
 func (tlg *TlgBot) renderView(ctx *RequestContext, view Renderable) {
-	tlg.bot.Send(view.Render(ctx.Received))
+	send, err := tlg.bot.Send(view.Render(ctx.Received))
+	log.Printf("Send message : %s %v", err, send)
 }
 
 func (tlg *TlgBot) handleLastStateForUser(lastStateUser string) (*State, error) {
@@ -133,7 +132,11 @@ func (tlg *TlgBot) startStateChannel() chan<- State {
 				log.Warn("Shutting down the redis client")
 				return
 			case res := <-ch:
-				tlg.state.Set(tlg.ctx, res)
+				if res.Data == nil {
+					tlg.state.Delete(tlg.ctx, res.Uid)
+				} else {
+					tlg.state.Set(tlg.ctx, res)
+				}
 			}
 		}
 	}()
@@ -141,8 +144,6 @@ func (tlg *TlgBot) startStateChannel() chan<- State {
 }
 
 func handleErrorView(err error) Renderable {
-	fmt.Println(errors.As(err, &RouteNotFoundError{}), err)
-
 	if errors.As(err, &DataNotFound{}) {
 		return NewNotFoundView(err.Error())
 	}

@@ -14,3 +14,10 @@ type DataNotFound struct {
 func (d DataNotFound) Error() string {
 	return "your requesting data is not found"
 }
+
+type UnknownError struct {
+}
+
+func (d UnknownError) Error() string {
+	return "Unknown error"
+}

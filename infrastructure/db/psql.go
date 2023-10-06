@@ -64,7 +64,11 @@ type GroupRepository struct {
 }
 
 func (g GroupRepository) Create(group *domain.Group) error {
-	model := FromGroup(group)
+	model := &GroupEntity{
+		InviteLink: group.InviteLink,
+		CreatorId:  group.CreatorId,
+		Name:       group.Name,
+	}
 	res := g.db.Create(model)
 	if res.Error != nil {
 		return res.Error
@@ -90,14 +94,30 @@ func (g GroupRepository) Get(id uint64) *domain.Group {
 	}
 }
 
-func (g GroupRepository) UserGroupsPaginate(user uint64, page uint) Paginate[domain.Group] {
-	var results []*domain.Group
+func (g GroupRepository) UserGroupsPaginate(user uint64, page uint) *Paginate[domain.Group] {
+	var results []*GroupEntity
+	perPage := 2
 
-	return Paginate[domain.Group]{
-		Results:  results,
-		Page:     page,
-		NextPage: false,
+	g.db.Where("creator_id = ?", user).
+		Offset((int(page) - 1) * perPage).
+		Limit(perPage + 1).
+		Find(&results)
+
+	groups := make([]*domain.Group, len(results))
+
+	for i, result := range results {
+		groups[i] = &domain.Group{
+			InviteLink: result.InviteLink,
+			DeletedAt:  result.DeletedAt,
+			CreatedAt:  result.CreatedAt,
+			UpdatedAt:  result.UpdatedAt,
+			CreatorId:  result.CreatorId,
+			Name:       result.Name,
+			ID:         result.ID,
+		}
 	}
+
+	return MakeSimplePaginate[domain.Group](groups, int(page), perPage)
 }
 
 func NewGroupRepository(db *gorm.DB) *GroupRepository {

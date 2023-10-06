@@ -6,10 +6,10 @@ import (
 )
 
 type IGroupService interface {
-	UserGroupPaginate(user uint64, page uint) db.Paginate[domain.Group]
-	Create(group *domain.Group) error
+	UserGroupPaginate(user uint64, page uint) *db.Paginate[domain.Group]
+	Store(group *domain.Group) error
 	Update(group *domain.Group) error
-	Get(id uint64) (*domain.Group, error)
+	UserGetGroup(user uint64, id uint64) (*domain.Group, error)
 }
 
 type GroupService struct {
@@ -21,13 +21,12 @@ func NewGroupService(reader db.GroupReader, writer db.GroupWriter) *GroupService
 	return &GroupService{reader: reader, writer: writer}
 }
 
-func (g GroupService) UserGroupPaginate(user uint64, page uint) db.Paginate[domain.Group] {
+func (g GroupService) UserGroupPaginate(user uint64, page uint) *db.Paginate[domain.Group] {
 	return g.reader.UserGroupsPaginate(user, page)
 }
 
-func (g GroupService) Create(group *domain.Group) error {
-	//TODO implement me
-	panic("implement me")
+func (g GroupService) Store(group *domain.Group) error {
+	return g.writer.Create(group)
 }
 
 func (g GroupService) Update(group *domain.Group) error {
@@ -35,7 +34,7 @@ func (g GroupService) Update(group *domain.Group) error {
 	panic("implement me")
 }
 
-func (g GroupService) Get(id uint64) (*domain.Group, error) {
+func (g GroupService) UserGetGroup(user uint64, id uint64) (*domain.Group, error) {
 	//TODO implement me
 	panic("implement me")
 }

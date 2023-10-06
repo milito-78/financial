@@ -2,6 +2,8 @@ package telegram
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	log "github.com/sirupsen/logrus"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -16,6 +18,7 @@ type Route struct {
 
 type RequestContext struct {
 	RouteParams       []string
+	QueryParams       url.Values
 	Received          tgbotapi.Update
 	Route             *Route
 	Message           string
@@ -45,14 +48,15 @@ func (router *Router) AddRoute(path string, handler func(ctx *RequestContext) (R
 	router.Routes = append(router.Routes, &Route{Path: path, Pattern: pattern, Handler: handler, variables: vars, Name: name})
 }
 
-func (router *Router) MatchRoute(path string) (*Route, []string, error) {
+func (router *Router) MatchRoute(path string) (*Route, *url.Values, []string, error) {
 	found := router.foundHandler(path)
 	if found != nil {
 		target := regexp.MustCompile(found.Pattern)
 		routeParams := extractDynamicVars(path, target)
-		return found, routeParams, nil
+		queryParams := extractQueryParams(path)
+		return found, queryParams, routeParams, nil
 	}
-	return nil, nil, RouteNotFoundError{path}
+	return nil, &url.Values{}, nil, RouteNotFoundError{path}
 }
 
 func (router *Router) onlyTextMessage(message *tgbotapi.Message) bool {
@@ -94,4 +98,14 @@ func extractDynamicSegments(inputPattern string, dynamicSegmentRegex *regexp.Reg
 	}
 
 	return result
+}
+
+func extractQueryParams(path string) *url.Values {
+	parsedURL, err := url.Parse(path)
+	if err != nil {
+		log.Error("Error parsing URL:", err)
+		return nil
+	}
+	t := parsedURL.Query()
+	return &t
 }

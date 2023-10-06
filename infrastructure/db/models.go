@@ -53,9 +53,10 @@ func FromUser(user *domain.User) *UserEntity {
 }
 
 type GroupEntity struct {
-	CreatorId uint64      `gorm:"not null"`
-	Creator   *UserEntity `gorm:"foreignKey:CreatorId"`
-	Name      string
+	InviteLink string      `gorm:"unique"`
+	CreatorId  uint64      `gorm:"not null"`
+	Creator    *UserEntity `gorm:"foreignKey:CreatorId"`
+	Name       string
 	Identifier
 	SoftDelete
 	Dates
@@ -63,13 +64,14 @@ type GroupEntity struct {
 
 func (g *GroupEntity) ToGroup() *domain.Group {
 	return &domain.Group{
-		DeletedAt: g.DeletedAt,
-		CreatedAt: g.CreatedAt,
-		UpdatedAt: g.UpdatedAt,
-		CreatorId: g.CreatorId,
-		Creator:   *g.Creator.ToUser(),
-		Name:      g.Name,
-		ID:        g.ID,
+		InviteLink: g.InviteLink,
+		DeletedAt:  g.DeletedAt,
+		CreatedAt:  g.CreatedAt,
+		UpdatedAt:  g.UpdatedAt,
+		CreatorId:  g.CreatorId,
+		Creator:    *g.Creator.ToUser(),
+		Name:       g.Name,
+		ID:         g.ID,
 	}
 }
 
@@ -88,5 +90,6 @@ func FromGroup(group *domain.Group) *GroupEntity {
 			CreatedAt: group.CreatedAt,
 			UpdatedAt: group.UpdatedAt,
 		},
+		InviteLink: group.InviteLink,
 	}
 }

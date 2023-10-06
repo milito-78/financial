@@ -6,6 +6,7 @@ type App struct {
 	LogLevel string   `mapstructure:"log_level" default:"info"`
 	Version  string   `mapstructure:"version" default:"0.0.1"`
 	BotToken string   `mapstructure:"bot_token"`
+	BotId    string   `mapstructure:"bot_id"`
 }
 
 type Database struct {

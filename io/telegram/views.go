@@ -1,80 +1,17 @@
 package telegram
 
 import (
+	"financial/config"
 	"financial/domain"
 	"financial/infrastructure/db"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"strconv"
 	"strings"
 )
 
-type ButtonComponent struct {
-	Title string
-}
-
-type InlineButtonComponent struct {
-	Title    string
-	CallBack string
-}
-
 type Renderable interface {
 	Render(received tgbotapi.Update) tgbotapi.MessageConfig
-}
-
-type NotFoundView struct {
-	Text string
-}
-
-func NewNotFoundView(text string) *NotFoundView {
-	if text == "" {
-		text = "Command is not found."
-	}
-	return &NotFoundView{Text: text}
-}
-
-func (s NotFoundView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
-	message := tgbotapi.NewMessage(received.SentFrom().ID, s.Text)
-	return message
-}
-
-type UnknownErrorView struct {
-}
-
-func NewUnknownErrorView() *UnknownErrorView {
-	return &UnknownErrorView{}
-}
-
-func (s UnknownErrorView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
-	message := tgbotapi.NewMessage(received.SentFrom().ID, "There is an error during handle your request. Please be patient and try again later.")
-	return message
-}
-
-type StartView struct {
-	Text    string
-	Buttons []ButtonComponent
-}
-
-func NewStartView(name string, groupStatus, paymentStatus, myPaymentsStatus bool, startCmd bool) *StartView {
-	text := "How can I help you dear " + name
-	if startCmd {
-		text = "Hello dear " + name + ". Welcome to payment handler bot.\n" +
-			"This bot helps you to share payments and invoices between your friends."
-	}
-
-	buttons := []ButtonComponent{
-		{Title: GroupsCmd},
-		{Title: "Invoices menu"},
-		{Title: "My Invoices"},
-	}
-	return &StartView{Text: text, Buttons: buttons}
-}
-
-func (s StartView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
-	message := tgbotapi.NewMessage(received.Message.Chat.ID, s.Text)
-	var columns = buttonMakerMatrix(s.Buttons, 2)
-	replyKeyboard := tgbotapi.NewReplyKeyboard(columns...)
-	message.ReplyMarkup = replyKeyboard
-	return message
 }
 
 type GroupMenuView struct {
@@ -101,10 +38,10 @@ func (s GroupMenuView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 }
 
 type GroupListView struct {
-	Paginate db.Paginate[domain.Group]
+	Paginate *db.Paginate[domain.Group]
 }
 
-func NewGroupListView(paginate db.Paginate[domain.Group]) *GroupListView {
+func NewGroupListView(paginate *db.Paginate[domain.Group]) *GroupListView {
 	return &GroupListView{Paginate: paginate}
 }
 
@@ -118,21 +55,29 @@ func (g GroupListView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 			CallBack: GroupsCreate,
 		})
 	} else {
-		text = "Here is your groups "
+		text = "Groups that you created: "
 		for _, result := range g.Paginate.Results {
 			inlineKeyboards = append(inlineKeyboards, InlineButtonComponent{
-				Title:    strconv.FormatUint(result.ID, 10) + result.Name,
+				Title:    result.Name,
 				CallBack: strings.Replace(GroupsShow, ":id", strconv.FormatUint(result.ID, 10), 1),
 			})
 		}
 	}
 
 	var inlineColumn = inlineButtonMakerMatrix(inlineKeyboards, 3)
-	inlineColumn = append(inlineColumn, []tgbotapi.InlineKeyboardButton{
-		//tgbotapi.NewInlineKeyboardButtonData("Next Page", "1"),
-		//tgbotapi.NewInlineKeyboardButtonData("Prev Page", "2"),
-	})
-	message := tgbotapi.NewMessage(received.Message.Chat.ID, text)
+	var temp []tgbotapi.InlineKeyboardButton
+	if g.Paginate.Page != 1 {
+		temp = append(temp, tgbotapi.NewInlineKeyboardButtonData("Prev Page", GroupsList+"?page="+strconv.Itoa(int(g.Paginate.Page-1))))
+	}
+	if g.Paginate.NextPage {
+		temp = append(temp, tgbotapi.NewInlineKeyboardButtonData("Next Page", GroupsList+"?page="+strconv.Itoa(int(g.Paginate.Page+1))))
+	}
+
+	if len(temp) != 0 {
+		inlineColumn = append(inlineColumn, temp)
+	}
+
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(inlineColumn...)
 
 	return message
@@ -148,84 +93,47 @@ func NewGroupCreateView() *GroupCreateView {
 func (g GroupCreateView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 	var text string
 	text = "Please tell me what is your group name? :"
-	message := tgbotapi.NewMessage(received.Message.Chat.ID, text)
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
 	return message
 }
 
-func buttonMakerMatrix(buttons []ButtonComponent, colCount uint) [][]tgbotapi.KeyboardButton {
-	length := len(buttons)
-	if length == 0 {
-		return nil
-	}
-
-	j := int(colCount)
-	i := length / j
-	if i == 0 {
-		i = 0
-	}
-
-	if length%j != 0 {
-		i += 1
-	}
-
-	tlgButtons := make([][]tgbotapi.KeyboardButton, i)
-	for k := range tlgButtons {
-		tlgButtons[k] = make([]tgbotapi.KeyboardButton, j)
-	}
-
-	row, col := 0, 0
-	for _, btn := range buttons {
-		tlgButtons[row][col] = tgbotapi.NewKeyboardButton(btn.Title)
-		if col+1 < j {
-			col += 1
-			continue
-		} else {
-			col = 0
-			row += 1
-		}
-	}
-
-	return tlgButtons
+type GroupStoreView struct {
+	group *domain.Group
 }
 
-func inlineButtonMakerMatrix(buttons []InlineButtonComponent, colCount uint) [][]tgbotapi.InlineKeyboardButton {
-	length := len(buttons)
-	if length == 0 {
-		return nil
-	}
+func NewGroupStoreView(group *domain.Group) *GroupStoreView {
+	return &GroupStoreView{group: group}
+}
 
-	j := int(colCount)
-	i := length / j
+func (g GroupStoreView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	text := fmt.Sprintf(`
+Group created successfully, Here group details:
+<b>Group Name :</b> %s
+<a href="https://t.me/%s?start=%s">Invite link</a>
+`, g.group.Name, config.Default.(*config.App).BotId, g.group.InviteLink)
 
-	if length%j != 0 {
-		i += 1
-	}
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
+	message.ParseMode = tgbotapi.ModeHTML
+	return message
+}
 
-	tlgButtons := make([][]tgbotapi.InlineKeyboardButton, i)
-	for k := range tlgButtons {
-		tlgButtons[k] = make([]tgbotapi.InlineKeyboardButton, j)
-	}
+type GroupShowView struct {
+	group *domain.Group
+}
 
-	row, col := 0, 0
-	for _, btn := range buttons {
-		tlgButtons[row][col] = tgbotapi.NewInlineKeyboardButtonData(btn.Title, btn.CallBack)
-		if col+1 < j {
-			col += 1
-			continue
-		} else {
-			col = 0
-			row += 1
-		}
-	}
+func NewGroupShowView(group *domain.Group) *GroupShowView {
+	return &GroupShowView{group: group}
+}
 
-	newOne := make([][]tgbotapi.InlineKeyboardButton, i)
-	for x, buttons := range tlgButtons {
-		for _, button := range buttons {
-			if button.Text != "" {
-				newOne[x] = append(newOne[x], button)
-			}
-		}
-	}
-
-	return newOne
+func (g GroupShowView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	text := fmt.Sprintf(`
+Here group details:
+<b>Group Name :</b> %s
+<b>Owner Username :</b> @%s
+<a href="https://t.me/%s?start=%s">Invite link</a>
+`, g.group.Name, g.group.Creator.Username, config.Default.(*config.App).BotId, g.group.InviteLink)
+	tgbotapi.NewInlineKeyboardButtonData("Edit", strings.Replace(GroupsEdit, ":id", strconv.FormatUint(g.group.ID, 10), 1))
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
+	message.ParseMode = tgbotapi.ModeHTML
+	return message
 }
