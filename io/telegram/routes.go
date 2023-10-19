@@ -9,14 +9,17 @@ const (
 	StartCmd   = "start"
 	BackToMenu = "Back to menu"
 
-	GroupsCmd       = "Groups menu"
-	GroupsCreate    = "groups_create"
-	GroupsStoreName = "groups_store/:name"
-	GroupsDelete    = "groups_delete"
-	GroupsList      = "My Groups"
-	GroupsShow      = "groups_show/:id"
-	GroupsEdit      = "groups_edit/:id"
-	GroupsUpdate    = "groups_update/:id"
+	GroupsCmd        = "Groups menu"
+	GroupsCreate     = "groups_create"
+	GroupsStoreName  = "groups_store/:name"
+	GroupsDelete     = "groups_delete/:id"
+	GroupsList       = "My Groups"
+	GroupsShow       = "groups_show/:id"
+	GroupsEdit       = "groups_edit/:id"
+	GroupsUpdate     = "groups_update/:id"
+	GroupsLeave      = "groups_leave/:id"
+	GroupsMembers    = "groups_members/:id"
+	GroupsMembersDel = "groups_members_delete/:id"
 
 	MyReceiptsGroupsCmd = "/my_receipts"
 	ReceiptsPayForm     = "receipts_receipts_form/:id"
@@ -30,6 +33,9 @@ const (
 	ReceiptsEdit      = "receipts_edit"
 	ReceiptsUpdate    = "receipts_update"
 	ReceiptsDelete    = "receipts_delete"
+
+	RouteParamEditGroupName = "name"
+	RouteParamEditGroupLink = "link"
 )
 
 func registerRoutes(router *Router) {
@@ -47,5 +53,9 @@ func registerRoutes(router *Router) {
 	router.AddRoute(GroupsShow, groupActionCmd.Show, "Groups show")
 	router.AddRoute(GroupsStoreName, groupActionCmd.Store, "Groups store")
 	router.AddRoute(GroupsCreate, groupActionCmd.Create, "Groups create")
+	router.AddRoute(GroupsEdit, groupActionCmd.Edit, "Groups edit")
+	router.AddRoute(GroupsUpdate, groupActionCmd.Update, "Groups update")
+	router.AddRoute(GroupsDelete, groupActionCmd.Delete, "Groups delete")
+	router.AddRoute(GroupsLeave, groupActionCmd.Leave, "Groups leave")
 
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"financial/domain"
 	"gorm.io/gorm"
+	"time"
 )
 
 type UserRepository struct {
@@ -80,13 +81,16 @@ func (g GroupRepository) Create(group *domain.Group) error {
 }
 
 func (g GroupRepository) Update(group *domain.Group) error {
-	//TODO implement me
-	panic("implement me")
+	res := g.db.Model(&GroupEntity{}).Where("id = ?", group.ID).Updates(GroupEntity{InviteLink: group.InviteLink, Name: group.Name})
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func (g GroupRepository) Get(id uint64) *domain.Group {
 	var x GroupEntity
-	res := g.db.First(&x, id)
+	res := g.db.Preload("Creator").First(&x, id)
 	if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return nil
 	} else {
@@ -118,6 +122,22 @@ func (g GroupRepository) UserGroupsPaginate(user uint64, page uint) *Paginate[do
 	}
 
 	return MakeSimplePaginate[domain.Group](groups, int(page), perPage)
+}
+
+func (g GroupRepository) SoftDelete(id uint64) error {
+	res := g.db.Model(&GroupEntity{}).Where("id = ?", id).Update("deleted_at", time.Now())
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+func (g GroupRepository) UserLeaveGroup(groupId uint64, userId uint64) error {
+	//TODO leave group (GroupMemberEntity need)
+	res := g.db.Model(&GroupEntity{}).Where("id = ?", groupId).Update("deleted_at", userId)
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func NewGroupRepository(db *gorm.DB) *GroupRepository {

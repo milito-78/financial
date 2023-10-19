@@ -17,7 +17,6 @@ func NewStartCommand(userService application.IUserService) *StartCommand {
 }
 
 func (s *StartCommand) Handle(ctx *RequestContext) (Renderable, error) {
-	//TODO handle invite to group and make them friend
 	telUser := ctx.Received.SentFrom()
 	isStart := false
 	if ctx.Route.Path != BackToMenu {
@@ -28,8 +27,11 @@ func (s *StartCommand) Handle(ctx *RequestContext) (Renderable, error) {
 			err := s.userService.AddUser(domain.NewUser(telUser.UserName, telUser.FirstName, telUser.LastName, uuid))
 			if err != nil {
 				log.Printf("Error during create new user : %s \n", err)
+				return nil, err
 			}
 		}
+	} else {
+		//TODO handle invite to group and make them friend
 	}
 
 	return NewStartView(telUser.UserName, true, true, true, isStart), nil
@@ -164,6 +166,19 @@ func NewNotFoundView(text string) *NotFoundView {
 }
 
 func (s NotFoundView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	message := tgbotapi.NewMessage(received.SentFrom().ID, s.Text)
+	return message
+}
+
+type AccessErrorView struct {
+	Text string
+}
+
+func NewAccessErrorView(text string) *AccessErrorView {
+	return &AccessErrorView{Text: text}
+}
+
+func (s AccessErrorView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 	message := tgbotapi.NewMessage(received.SentFrom().ID, s.Text)
 	return message
 }

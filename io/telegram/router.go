@@ -1,6 +1,8 @@
 package telegram
 
 import (
+	"financial/domain"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
 	"net/url"
@@ -24,6 +26,7 @@ type RequestContext struct {
 	Message           string
 	stateSaverChannel chan<- State
 	lastState         *State
+	user              *domain.User
 }
 
 func (r *RequestContext) SetState(state State) {
@@ -32,6 +35,10 @@ func (r *RequestContext) SetState(state State) {
 
 func (r *RequestContext) GetState() *State {
 	return r.lastState
+}
+
+func (r *RequestContext) GetUser() *domain.User {
+	return r.user
 }
 
 type Router struct {
@@ -49,12 +56,16 @@ func (router *Router) AddRoute(path string, handler func(ctx *RequestContext) (R
 }
 
 func (router *Router) MatchRoute(path string) (*Route, *url.Values, []string, error) {
-	found := router.foundHandler(path)
+	urlPath, query, err := parsUrl(path)
+	fmt.Println(urlPath, query, err)
+	if err != nil {
+		return nil, &url.Values{}, nil, RouteNotFoundError{path}
+	}
+	found := router.foundHandler(urlPath)
 	if found != nil {
 		target := regexp.MustCompile(found.Pattern)
-		routeParams := extractDynamicVars(path, target)
-		queryParams := extractQueryParams(path)
-		return found, queryParams, routeParams, nil
+		routeParams := extractDynamicVars(urlPath, target)
+		return found, query, routeParams, nil
 	}
 	return nil, &url.Values{}, nil, RouteNotFoundError{path}
 }
@@ -100,12 +111,12 @@ func extractDynamicSegments(inputPattern string, dynamicSegmentRegex *regexp.Reg
 	return result
 }
 
-func extractQueryParams(path string) *url.Values {
+func parsUrl(path string) (string, *url.Values, error) {
 	parsedURL, err := url.Parse(path)
 	if err != nil {
 		log.Error("Error parsing URL:", err)
-		return nil
+		return "", nil, err
 	}
-	t := parsedURL.Query()
-	return &t
+	queries := parsedURL.Query()
+	return parsedURL.Path, &queries, nil
 }

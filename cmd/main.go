@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"financial/application"
 	"financial/bootstrap"
 	"financial/config"
 	"financial/infrastructure/cache"
@@ -40,7 +41,10 @@ func main() {
 	var c cache.ICache
 	_ = container.Resolve(&c)
 
-	bot := telegram.NewTelegramBot(ctx, c, cfg.BotToken)
+	var userService application.IUserService
+	_ = container.Resolve(&userService)
+
+	bot := telegram.NewTelegramBot(ctx, c, cfg.BotToken, userService)
 
 	go bot.StartBot()
 

@@ -58,7 +58,7 @@ func (g GroupListView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 		text = "Groups that you created: "
 		for _, result := range g.Paginate.Results {
 			inlineKeyboards = append(inlineKeyboards, InlineButtonComponent{
-				Title:    result.Name,
+				Title:    fmt.Sprintf("%d. %s", result.ID, result.Name),
 				CallBack: strings.Replace(GroupsShow, ":id", strconv.FormatUint(result.ID, 10), 1),
 			})
 		}
@@ -119,10 +119,11 @@ Group created successfully, Here group details:
 
 type GroupShowView struct {
 	group *domain.Group
+	user  *domain.User
 }
 
-func NewGroupShowView(group *domain.Group) *GroupShowView {
-	return &GroupShowView{group: group}
+func NewGroupShowView(group *domain.Group, user *domain.User) *GroupShowView {
+	return &GroupShowView{group: group, user: user}
 }
 
 func (g GroupShowView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
@@ -130,10 +131,138 @@ func (g GroupShowView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
 Here group details:
 <b>Group Name :</b> %s
 <b>Owner Username :</b> @%s
+`, g.group.Name, g.group.Creator.Username)
+	if g.user.ID == g.group.CreatorId {
+		text = text + fmt.Sprintf("<a href=\"https://t.me/%s?start=%s\">Invite link</a>", config.Default.(*config.App).BotId, g.group.InviteLink)
+	} else {
+		text = text + "You were invite to this group."
+	}
+
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
+
+	if g.user.ID == g.group.CreatorId {
+		editRoute := strings.Replace(GroupsEdit, ":id", strconv.FormatUint(g.group.ID, 10), 1)
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Edit Name", editRoute+"?action="+RouteParamEditGroupName),
+				tgbotapi.NewInlineKeyboardButtonData("Change Invite Link", editRoute+"?action="+RouteParamEditGroupLink),
+			},
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Delete", strings.Replace(GroupsDelete, ":id", strconv.FormatUint(g.group.ID, 10), 1)),
+			},
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Members", strings.Replace(GroupsMembers, ":id", strconv.FormatUint(g.group.ID, 10), 1)),
+			},
+		)
+	} else {
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Leave Group", strings.Replace(GroupsLeave, ":id", strconv.FormatUint(g.group.ID, 10), 1)),
+			},
+		)
+	}
+
+	message.ParseMode = tgbotapi.ModeHTML
+	return message
+}
+
+type GroupEditView struct {
+	group  *domain.Group
+	action string
+	text   string
+}
+
+func NewGroupEditView(text string, group *domain.Group, action string) *GroupEditView {
+	return &GroupEditView{group: group, action: action, text: text}
+}
+
+func (g GroupEditView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	message := tgbotapi.NewMessage(received.SentFrom().ID, g.text)
+	message.ParseMode = tgbotapi.ModeHTML
+	if g.action == RouteParamEditGroupLink {
+		editRoute := strings.Replace(GroupsUpdate, ":id", strconv.FormatUint(g.group.ID, 10), 1)
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Yes, change it", editRoute+"?action="+RouteParamEditGroupLink+"&confirm=1"),
+				tgbotapi.NewInlineKeyboardButtonData("No, Came back to list", GroupsList),
+			},
+		)
+	}
+
+	return message
+}
+
+type GroupUpdateView struct {
+	group *domain.Group
+	text  string
+}
+
+func NewGroupUpdateView(text string, group *domain.Group) *GroupUpdateView {
+	return &GroupUpdateView{group: group, text: text}
+}
+
+func (g GroupUpdateView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	text := g.text
+	text = fmt.Sprintf(`
+Here group details:
+<b>Group Name :</b> %s
+<b>Owner Username :</b> @%s
 <a href="https://t.me/%s?start=%s">Invite link</a>
 `, g.group.Name, g.group.Creator.Username, config.Default.(*config.App).BotId, g.group.InviteLink)
-	tgbotapi.NewInlineKeyboardButtonData("Edit", strings.Replace(GroupsEdit, ":id", strconv.FormatUint(g.group.ID, 10), 1))
 	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
 	message.ParseMode = tgbotapi.ModeHTML
+
+	return message
+}
+
+type GroupDeleteView struct {
+	group   *domain.Group
+	text    string
+	confirm bool
+}
+
+func NewGroupDeleteView(text string, group *domain.Group, confirm bool) *GroupDeleteView {
+	return &GroupDeleteView{group: group, text: text, confirm: confirm}
+}
+
+func (g GroupDeleteView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	text := g.text
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
+
+	if g.confirm {
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Yes, delete it", strings.Replace(GroupsDelete, ":id", strconv.FormatUint(g.group.ID, 10), 1)+"?confirm=1"),
+				tgbotapi.NewInlineKeyboardButtonData("No, Came back to list", GroupsList),
+			},
+		)
+	}
+
+	return message
+}
+
+type GroupLeaveView struct {
+	group   *domain.Group
+	text    string
+	confirm bool
+}
+
+func NewGroupLeaveView(text string, group *domain.Group, confirm bool) *GroupLeaveView {
+	return &GroupLeaveView{group: group, text: text, confirm: confirm}
+}
+
+func (g GroupLeaveView) Render(received tgbotapi.Update) tgbotapi.MessageConfig {
+	text := g.text
+	message := tgbotapi.NewMessage(received.SentFrom().ID, text)
+
+	if g.confirm {
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("Yes, I want to leave", strings.Replace(GroupsLeave, ":id", strconv.FormatUint(g.group.ID, 10), 1)+"?confirm=1"),
+				tgbotapi.NewInlineKeyboardButtonData("No, Came back to list", GroupsList),
+			},
+		)
+	}
+
 	return message
 }

@@ -48,4 +48,6 @@ type GroupReader interface {
 type GroupWriter interface {
 	Create(group *domain.Group) error
 	Update(group *domain.Group) error
+	SoftDelete(id uint64) error
+	UserLeaveGroup(groupId uint64, userId uint64) error
 }

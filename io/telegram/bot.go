@@ -3,6 +3,8 @@ package telegram
 import (
 	"context"
 	"errors"
+	"financial/application"
+	"financial/domain"
 	"financial/infrastructure/cache"
 	telBot "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
@@ -11,20 +13,21 @@ import (
 )
 
 type TlgBot struct {
-	bot    *telBot.BotAPI
-	router *Router
-	state  StateManager
-	ctx    context.Context
+	userService application.IUserService
+	bot         *telBot.BotAPI
+	router      *Router
+	state       StateManager
+	ctx         context.Context
 }
 
-func NewTelegramBot(ctx context.Context, cache cache.ICache, token string) *TlgBot {
+func NewTelegramBot(ctx context.Context, cache cache.ICache, token string, userService application.IUserService) *TlgBot {
 	defer log.Info("Bot created successfully")
 	bot, err := telBot.NewBotAPI(token)
 	if err != nil {
 		log.Fatalf("error during new bot : %s \n", err)
 	}
 	log.Info("Creating new bot...")
-	return &TlgBot{bot: bot, router: NewRouter(), state: StateManager{cache: cache}, ctx: ctx}
+	return &TlgBot{bot: bot, router: NewRouter(), state: StateManager{cache: cache}, ctx: ctx, userService: userService}
 }
 
 func (tlg *TlgBot) StartBot() {
@@ -40,8 +43,16 @@ func (tlg *TlgBot) StartBot() {
 	log.Info("Waiting for new update")
 	for update := range updates {
 		message := update.Message
-		var lastState *State
 		var err error
+
+		user, err := tlg.getCurrentUser(update.SentFrom())
+		if err != nil {
+			handled := handleErrorView(err)
+			tlg.bot.Send(handled.Render(update))
+			continue
+		}
+
+		var lastState *State
 		var route *Route
 		var params []string
 		var queries *url.Values
@@ -83,6 +94,7 @@ func (tlg *TlgBot) StartBot() {
 			Message:           path,
 			stateSaverChannel: saverCh,
 			lastState:         lastState,
+			user:              user,
 		}
 		renderable, err := route.Handler(ctx)
 		if err != nil {
@@ -143,12 +155,31 @@ func (tlg *TlgBot) startStateChannel() chan<- State {
 	return ch
 }
 
+func (tlg *TlgBot) getCurrentUser(telUser *telBot.User) (*domain.User, error) {
+	uid := strconv.FormatInt(telUser.ID, 10)
+	user, err := tlg.userService.GetUserByUuid(uid)
+	if err != nil {
+		if err != nil {
+			err := tlg.userService.AddUser(domain.NewUser(telUser.UserName, telUser.FirstName, telUser.LastName, uid))
+			if err != nil {
+				log.Printf("Error during create new user : %s \n", err)
+				return nil, err
+			}
+		}
+	}
+
+	return user, nil
+}
+
 func handleErrorView(err error) Renderable {
 	if errors.As(err, &DataNotFound{}) {
 		return NewNotFoundView(err.Error())
 	}
 	if errors.As(err, &RouteNotFoundError{}) {
 		return NewNotFoundView(err.Error())
+	}
+	if errors.As(err, &AccessError{}) {
+		return NewAccessErrorView(err.Error())
 	}
 
 	//unknown error
